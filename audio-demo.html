@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Godwell Audio Bench</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        --bg: #0b0a0d;
+        --panel: #15131a;
+        --line: #2a2631;
+        --text: #d9d3c7;
+        --dim: #8a8393;
+        --accent: #c9a46a;
+        --live: #7fb77e;
+        --warn: #d6a24a;
+        --bad: #d0605a;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+      header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 10px 16px; background: #0e0c11ee; border-bottom: 1px solid var(--line); }
+      header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.04em; color: var(--accent); }
+      main { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; padding: 12px 16px 40px; }
+      section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+      section.wide { grid-column: 1 / -1; }
+      h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); font-weight: 600; }
+      button { font: inherit; color: var(--text); background: #1f1c25; border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; margin: 2px; cursor: pointer; }
+      button:hover { border-color: var(--accent); }
+      button.on { background: #2b3a2a; border-color: var(--live); color: #d8f0d4; }
+      button.primary { background: var(--accent); color: #1a140b; border-color: var(--accent); font-weight: 600; }
+      label { display: flex; align-items: center; gap: 8px; margin: 3px 0; color: var(--dim); }
+      label span { width: 76px; }
+      input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+      input[type="checkbox"] { accent-color: var(--accent); }
+      select { font: inherit; background: #1f1c25; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 3px; }
+      .pill { padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--dim); }
+      .pill.live { color: var(--live); border-color: var(--live); }
+      .stats { color: var(--dim); }
+      canvas { display: block; width: 100%; max-width: 260px; aspect-ratio: 1; background: #0f0d12; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; }
+      table { border-collapse: collapse; width: 100%; font-size: 12px; }
+      td, th { padding: 2px 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+      td.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .ok { color: var(--live); } .quiet { color: var(--warn); } .silent, .clip, .error { color: var(--bad); }
+      .grid-voices { display: grid; grid-template-columns: 90px repeat(5, 1fr); gap: 2px; align-items: center; }
+      .grid-voices button { margin: 0; padding: 3px 4px; }
+      .note { color: var(--dim); margin: 6px 0 0; }
+      .scroll { max-height: 420px; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/client/audio/demo.ts"></script>
+  </body>
+</html>

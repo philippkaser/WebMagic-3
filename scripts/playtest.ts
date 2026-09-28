@@ -16,13 +16,16 @@ mkdirSync(out, { recursive: true });
 let url = arg("--url", "");
 let vite: ReturnType<typeof spawn> | null = null;
 if (!url) {
-  // A production build served statically: immune to HMR reloads while
-  // other work edits the tree.
   const port = 5199;
-  const outDir = "/tmp/godwell-playtest";
-  const build = Bun.spawnSync(["./node_modules/.bin/vite", "build", "--outDir", outDir, "--emptyOutDir", "--logLevel", "error"], { stdout: "inherit", stderr: "inherit" });
-  if (build.exitCode !== 0) throw new Error("build failed");
-  vite = spawn("./node_modules/.bin/vite", ["preview", "--outDir", outDir, "--port", String(port), "--strictPort"], { stdio: "ignore" });
+  if (args.includes("--build")) {
+    const outDir = "/tmp/godwell-playtest";
+    const build = Bun.spawnSync(["./node_modules/.bin/vite", "build", "--outDir", outDir, "--emptyOutDir", "--logLevel", "error"], { stdout: "inherit", stderr: "inherit" });
+    if (build.exitCode !== 0) throw new Error("build failed");
+    vite = spawn("./node_modules/.bin/vite", ["preview", "--outDir", outDir, "--port", String(port), "--strictPort"], { stdio: "ignore" });
+  } else {
+    // Dev server without HMR/watching: other work in the tree can't reload us.
+    vite = spawn("./node_modules/.bin/vite", ["--config", "scripts/vite.playtest.config.ts", "--port", String(port), "--strictPort"], { stdio: "ignore" });
+  }
   url = `http://localhost:${port}`;
   for (let i = 0; i < 60; i++) {
     try {

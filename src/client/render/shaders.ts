@@ -255,7 +255,7 @@ void main() {
       vec4 l1 = texelFetch(tLights, ivec2(i, 1), 0);
       scatter += l1.rgb * (l2.x * inscatter(uCamPos, rd, T, l0.xyz, l0.w));
     }
-    color += scatter * uHaze * 0.02;
+    color += scatter * uHaze * 0.0035;
   }
 
   outColor = vec4(color, 1.0);

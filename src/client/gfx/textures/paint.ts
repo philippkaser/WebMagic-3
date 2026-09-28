@@ -167,46 +167,74 @@ export function scaleRGB(a: RGB, k: number): RGB {
   return [a[0] * k, a[1] * k, a[2] * k];
 }
 
+/** Wrapped neighbour tables per texture size: index ± 1 with wrap. Painting
+ * runs for every material at startup, so the per-texel loops below avoid
+ * modulo arithmetic. */
+const wrapTables = new Map<number, { m1: Int32Array; p1: Int32Array; m2: Int32Array; p2: Int32Array }>();
+function wraps(s: number) {
+  let t = wrapTables.get(s);
+  if (!t) {
+    const mk = (o: number) => Int32Array.from({ length: s }, (_, k) => (((k + o) % s) + s) % s);
+    t = { m1: mk(-1), p1: mk(1), m2: mk(-2), p2: mk(2) };
+    wrapTables.set(s, t);
+  }
+  return t;
+}
+
 /** Wrapped Sobel: height → tangent-space normal (+Y up in texture space is
  * "v increasing", matching three.js UV conventions). Returns RGBA8. */
 export function heightToNormal(p: Paint, strength: number): Uint8Array {
   const s = p.size;
+  const hf = p.height;
+  const { m1, p1 } = wraps(s);
   const out = new Uint8Array(s * s * 4);
-  const h = (x: number, y: number) => p.height[p.idx(x, y)];
   for (let y = 0; y < s; y++) {
+    const rm = m1[y] * s;
+    const r0 = y * s;
+    const rp = p1[y] * s;
     for (let x = 0; x < s; x++) {
-      const dx =
-        (h(x + 1, y - 1) + 2 * h(x + 1, y) + h(x + 1, y + 1) - h(x - 1, y - 1) - 2 * h(x - 1, y) - h(x - 1, y + 1)) *
-        strength;
-      const dy =
-        (h(x - 1, y + 1) + 2 * h(x, y + 1) + h(x + 1, y + 1) - h(x - 1, y - 1) - 2 * h(x, y - 1) - h(x + 1, y - 1)) *
-        strength;
+      const xm = m1[x];
+      const xp = p1[x];
+      const dx = (hf[rm + xp] + 2 * hf[r0 + xp] + hf[rp + xp] - hf[rm + xm] - 2 * hf[r0 + xm] - hf[rp + xm]) * strength;
+      const dy = (hf[rp + xm] + 2 * hf[rp + x] + hf[rp + xp] - hf[rm + xm] - 2 * hf[rm + x] - hf[rm + xp]) * strength;
       // Canvas rows go down while v goes up, hence +dy.
       const nx = -dx;
       const ny = dy;
-      const len = Math.hypot(nx, ny, 1);
-      const o = (y * s + x) * 4;
-      out[o] = Math.round(((nx / len) * 0.5 + 0.5) * 255);
-      out[o + 1] = Math.round(((ny / len) * 0.5 + 0.5) * 255);
-      out[o + 2] = Math.round(((1 / len) * 0.5 + 0.5) * 255);
-      out[o + 3] = Math.round(Math.min(1, Math.max(0, p.height[y * s + x])) * 255);
+      const inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+      const o = (r0 + x) * 4;
+      out[o] = (nx * inv * 0.5 + 0.5) * 255 + 0.5;
+      out[o + 1] = (ny * inv * 0.5 + 0.5) * 255 + 0.5;
+      out[o + 2] = (inv * 0.5 + 0.5) * 255 + 0.5;
+      const h = hf[r0 + x];
+      out[o + 3] = (h < 0 ? 0 : h > 1 ? 1 : h) * 255 + 0.5;
     }
   }
   return out;
 }
 
 /** Cheap cavity occlusion from the height field: texels lower than their
- * neighbourhood get darker. */
+ * neighbourhood (5×5 mean, wrapped) get darker. */
 export function cavityAO(p: Paint, amount: number): Float32Array {
   const s = p.size;
-  const out = new Float32Array(s * s);
+  const hf = p.height;
+  const { m1, p1, m2, p2 } = wraps(s);
+  const rows = new Float32Array(s * s);
   for (let y = 0; y < s; y++) {
+    const r0 = y * s;
+    for (let x = 0; x < s; x++) rows[r0 + x] = hf[r0 + m2[x]] + hf[r0 + m1[x]] + hf[r0 + x] + hf[r0 + p1[x]] + hf[r0 + p2[x]];
+  }
+  const out = new Float32Array(s * s);
+  const k = amount * 4;
+  for (let y = 0; y < s; y++) {
+    const a = m2[y] * s;
+    const b = m1[y] * s;
+    const c = y * s;
+    const d = p1[y] * s;
+    const e = p2[y] * s;
     for (let x = 0; x < s; x++) {
-      let sum = 0;
-      for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) sum += p.height[p.idx(x + ox, y + oy)];
-      const avg = sum / 25;
-      const d = p.height[y * s + x] - avg;
-      out[y * s + x] = Math.min(1, Math.max(0, 1 + d * amount * 4));
+      const mean = (rows[a + x] + rows[b + x] + rows[c + x] + rows[d + x] + rows[e + x]) / 25;
+      const v = 1 + (hf[c + x] - mean) * k;
+      out[c + x] = v < 0 ? 0 : v > 1 ? 1 : v;
     }
   }
   return out;

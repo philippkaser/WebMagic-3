@@ -11,16 +11,27 @@ import { Input } from "./input/Input";
 import { Renderer } from "./render/Renderer";
 import { App } from "./ui/App";
 
-// Content modules self-register on import. (Globs keep boot independent of
-// which families exist yet; sheet.ts is a dev page, not a model.)
-import.meta.glob(["./gfx/models/**/*.ts", "!./gfx/models/sheet.ts"], { eager: true });
-import.meta.glob("../shared/content/lore/index.ts", { eager: true });
+/** Content modules self-register on import. They are loaded lazily and in
+ * isolation: a broken model or text module is reported and skipped instead
+ * of taking the whole game down. (sheet.ts is a dev page, not a model.) */
+async function loadContent(): Promise<void> {
+  const modules = {
+    ...import.meta.glob(["./gfx/models/**/*.ts", "!./gfx/models/sheet.ts"]),
+    ...import.meta.glob("../shared/content/lore/index.ts"),
+  };
+  await Promise.all(
+    Object.entries(modules).map(([path, load]) =>
+      load().catch((err: unknown) => console.error(`[boot] content module ${path} failed to load`, err)),
+    ),
+  );
+}
 
 /** Bootstrap: paint every material and sprite, start physics, mount the UI,
  * and run the frame loop. */
 async function main(): Promise<void> {
   const canvas = document.getElementById("game") as HTMLCanvasElement;
   const t0 = performance.now();
+  await loadContent();
   buildMaterialArrays();
   const atlas = buildSpriteAtlas();
   await initPhysics();

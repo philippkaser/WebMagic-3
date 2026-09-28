@@ -310,7 +310,8 @@ function baseboard(cb: ChunkBuilder, ex0: number, ez0: number, ex1: number, ez1:
   const ox = n[0] * d;
   const oz = n[2] * d;
   const along = (px: number, pz: number) => (px + pz) / ws;
-  // Front face.
+  // Front face: trims are painted as a full moulding top to bottom, so v
+  // spans the whole texture over the strip's height.
   cb.quad(
     [
       [ex0 + ox, fy, ez0 + oz],
@@ -322,8 +323,8 @@ function baseboard(cb: ChunkBuilder, ex0: number, ez0: number, ex1: number, ez1:
     [
       [along(ex0, ez0), 0],
       [along(ex1, ez1), 0],
-      [along(ex1, ez1), h / ws],
-      [along(ex0, ez0), h / ws],
+      [along(ex1, ez1), 1],
+      [along(ex0, ez0), 1],
     ],
     layer,
     [0.55, 0.55, 0.8, 0.8],

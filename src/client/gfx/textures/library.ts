@@ -122,7 +122,12 @@ export function buildMaterialArrays(): MaterialArrays {
     const ao = cavityAO(p, e.opts.ao ?? 1);
     const base = layer * layerBytes;
     for (let i = 0; i < S * S; i++) {
-      const o = base + i * 4;
+      // Painters author in canvas order (row 0 = top of the image, gravity
+      // toward higher rows) and heightToNormal assumes v grows upward, but
+      // GPU row 0 is v = 0. Flip rows on upload so row 0 lands at v = 1:
+      // walls (v = worldY / worldSize) show moss at the bottom, drips run
+      // down, and the normal map's green channel points the right way.
+      const o = base + ((S - 1 - ((i / S) | 0)) * S + (i % S)) * 4;
       albedo[o] = to8(p.albedo[i * 3]);
       albedo[o + 1] = to8(p.albedo[i * 3 + 1]);
       albedo[o + 2] = to8(p.albedo[i * 3 + 2]);

@@ -99,9 +99,11 @@ export class Effects {
       }
       case "explode": {
         const c = ELEMENT_COLOR[ev.el];
-        const n = Math.round(20 + ev.r * 14);
-        this.burst(ev.p, c, n, ev.r * 3.2, 0.6, ev.el === "fire" ? "flame" : "glow");
-        this.burst(ev.p, [c[0] * 0.5, c[1] * 0.5, c[2] * 0.5], n / 2, ev.r * 1.5, 1, "spark");
+        const n = Math.round(14 + ev.r * 8);
+        // A hot core, then sparks and debris flung outward, then smoke.
+        this.particles.spawn({ x: ev.p[0], y: ev.p[1], z: ev.p[2], life: 0.18, size: ev.r * 1.2, size1: ev.r * 2, r: c[0] * 1.5, g: c[1] * 1.5, b: c[2] * 1.5, sprite: "glow" });
+        this.burst(ev.p, c, Math.round(n * 0.4), ev.r * 2.2, 0.35, ev.el === "fire" ? "flame" : "glow");
+        this.burst(ev.p, c, n, ev.r * 4, 0.7, "spark");
         this.puff(ev.p, Math.round(6 + ev.r * 3), ev.r * 0.8);
         // Shockwave ring.
         P.spawn({ x: ev.p[0], y: ev.p[1] + 0.1, z: ev.p[2], life: 0.35, size: 0.3, size1: ev.r * 2.6, r: c[0], g: c[1], b: c[2], alpha: 0.9, sprite: "ring" });
@@ -271,7 +273,7 @@ export class Effects {
         vy: (vy / l) * s + (additive ? 0.5 : 1.5),
         vz: (vz / l) * s,
         life: life * (0.6 + Math.random() * 0.6),
-        size: sprite === "glow" || sprite === "flame" ? 0.22 : 0.07,
+        size: sprite === "glow" ? 0.14 : sprite === "flame" ? 0.22 : 0.07,
         size1: sprite === "flame" ? 0.04 : undefined,
         r: c[0],
         g: c[1],

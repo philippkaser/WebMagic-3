@@ -108,7 +108,7 @@ export class LocalPlayer {
     this.pitch = 0;
     this.dead = false;
     this.lastFallSpeed = 0;
-    if (!this.lantern) this.lantern = this.lights.add({ position: this.pos, color: "#ffc48a", intensity: 2.4, radius: 7, flicker: 0.2, priority: 5, haze: 0.5 });
+    if (!this.lantern) this.lantern = this.lights.add({ position: this.pos, color: "#ffd9b0", intensity: 1.6, radius: 7, flicker: 0.15, priority: 5, haze: 0.35 });
   }
 
   leave(): void {

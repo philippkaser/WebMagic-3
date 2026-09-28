@@ -9,6 +9,7 @@ import { buildSpriteAtlas } from "./gfx/textures/sprites";
 import { buildMaterialArrays } from "./gfx/textures/library";
 import { Input } from "./input/Input";
 import { Renderer } from "./render/Renderer";
+import { SSR } from "./render/ssr";
 import { App } from "./ui/App";
 
 /** Content modules self-register on import. They are loaded lazily and in
@@ -38,6 +39,7 @@ async function main(): Promise<void> {
   console.info(`[boot] materials + physics in ${Math.round(performance.now() - t0)} ms`);
 
   const renderer = new Renderer(canvas);
+  renderer.effects.push(new SSR());
   const params = new URLSearchParams(location.search);
   if (params.has("scale")) renderer.settings.pixelScale = Number(params.get("scale"));
   const particles = new Particles(atlas);

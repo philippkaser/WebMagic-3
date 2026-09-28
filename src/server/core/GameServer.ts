@@ -1,4 +1,5 @@
-import { RUN, TICK_RATE } from "../../shared/config";
+import { KILL_Y, RUN, TICK_RATE } from "../../shared/config";
+import { damage } from "../../shared/sim/combat";
 import { ITEMS } from "../../shared/content";
 import { COSMETICS } from "../../shared/content/shops";
 import type { ItemInstance } from "../../shared/content/types";
@@ -18,6 +19,9 @@ import { FloorInstance } from "./FloorInstance";
 import { addToBag, forEachCarried, getAt, moveItem, takeItem } from "./inventory";
 import { chooseInstance } from "./matchmaker";
 import { returnKit, shopOp } from "./shops";
+
+/** Landing faster than this (m/s) hurts. */
+const FALL_SAFE = 13;
 
 /** The game server. Transport-agnostic: the Bun host feeds it WebSocket
  * messages, the offline worker feeds it postMessage traffic — the same
@@ -42,6 +46,8 @@ export class Session {
   carryHp: number | undefined;
   carryMana: number | undefined;
   dead = false;
+  /** Peak downward speed of the current fall (m/s). */
+  fallSpeed = 0;
   /** Instance a pact ally descended into, for following them. */
   partyTarget: { instance: string; until: number } | null = null;
   private cachedStats: PlayerStats | null = null;
@@ -532,8 +538,19 @@ export class GameServer {
     }
     const e = this.me(s);
     if (!e) return;
-    const corr = playerInput(s.floorInstance!.sim, e, { seq: msg.s, pos: v(msg.p), vel: v(msg.v), yaw: msg.y, pitch: msg.pi, grounded: !!msg.g });
+    const sim = s.floorInstance!.sim;
+    const wasGrounded = e.player!.input.grounded;
+    const fallSpeed = Math.max(s.fallSpeed, -e.player!.input.vel.y);
+    const corr = playerInput(sim, e, { seq: msg.s, pos: v(msg.p), vel: v(msg.v), yaw: msg.y, pitch: msg.pi, grounded: !!msg.g });
     if (corr) s.send({ t: "self", s: { hp: e.hp, maxHp: e.maxHp, mana: e.player!.mana, maxMana: e.player!.maxMana, cd: {}, st: {}, corr: [corr.x, corr.y, corr.z] } });
+    // Falls are judged here, from the reported motion: a hard landing hurts,
+    // and the abyss under a pit keeps what falls into it.
+    s.fallSpeed = msg.g ? 0 : fallSpeed;
+    if (!wasGrounded && msg.g && fallSpeed > FALL_SAFE) {
+      damage(sim, e, (fallSpeed - FALL_SAFE) * 7, { source: 0, element: "physical", cause: "fall" });
+      sim.emit({ t: "sound", id: "land_heavy", p: [e.pos.x, e.pos.y, e.pos.z] });
+    }
+    if (e.pos.y < KILL_Y && e.hp > 0) damage(sim, e, e.hp + 999, { source: e.player!.lastDamagedBy, element: "physical", cause: "the abyss" });
   }
 
   private chat(s: Session, text: string): void {

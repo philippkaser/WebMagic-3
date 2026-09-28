@@ -532,7 +532,7 @@ export const DEFAULT_ENV: Environment = {
   sky: null,
   sun: null,
   moonDir: [0.3, 0.5, -0.8],
-  exposure: 1.1,
+  exposure: 0.95,
   bloom: 0.08,
   bloomThreshold: 0.9,
   grade: { shadows: "#e8e4ff", highlights: "#fff1dc", saturation: 0.92, contrast: 1.05 },

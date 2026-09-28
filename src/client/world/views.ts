@@ -274,6 +274,11 @@ class ProjectileView implements EntityView {
   }
 
   update(e: ClientEntity, dt: number): void {
+    // Our own casts are drawn by the local prediction (player/Predicted.ts).
+    if (e.info?.own) {
+      if (this.light) this.light.enabled = false;
+      return;
+    }
     const p = this.ctx.particles;
     const [r, g, b] = this.color;
     // Core glow (re-emitted every frame so it tracks the interpolated pose).

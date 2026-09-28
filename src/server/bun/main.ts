@@ -13,7 +13,11 @@ const DIST = process.env.DIST ?? "dist";
 mkdirSync(DATA_DIR, { recursive: true });
 
 const store = new SqliteStore(join(DATA_DIR, "godwell.sqlite"));
-const server = await GameServer.create(store, { online: true, log: (m) => console.log(`[godwell] ${m}`) });
+const server = await GameServer.create(store, {
+  online: true,
+  log: (m) => console.log(`[godwell] ${m}`),
+  forceEncounters: process.env.FORCE_ENCOUNTERS === "1",
+});
 server.start();
 
 type WsData = { session: Session | null };

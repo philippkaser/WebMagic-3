@@ -107,6 +107,9 @@ export interface ServerOptions {
   log?: (msg: string) => void;
   /** Mint tokens/ids (crypto in production). */
   token?: () => string;
+  /** Testing: every delver entering a floor joins an occupied instance if
+   * one exists (bypasses the encounter probability). */
+  forceEncounters?: boolean;
 }
 
 export class GameServer {
@@ -352,7 +355,8 @@ export class GameServer {
     const a = s.account!;
     const party = s.partyTarget && s.partyTarget.until > this.now() ? s.partyTarget.instance : undefined;
     const candidates = [...this.instances.values()].map((i) => ({ id: i.id, floor: i.floor, members: i.memberCount, createdAt: i.createdAt, open: i.open }));
-    const pick = chooseInstance(candidates, { floor, now: this.now(), lonelyMinutes: (this.now() - a.lastEncounter) / 60000, partyInstance: party }, () => this.rng.next());
+    const random = this.opts.forceEncounters ? () => 0 : () => this.rng.next();
+    const pick = chooseInstance(candidates, { floor, now: this.now(), lonelyMinutes: (this.now() - a.lastEncounter) / 60000, partyInstance: party }, random);
     let inst = pick ? this.instances.get(pick) : undefined;
     if (!inst) {
       inst = new FloorInstance(this, `f${floor}-${this.nextInstance++}`, floor, randomSeed());

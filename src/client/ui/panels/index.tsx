@@ -6,6 +6,7 @@ import { itemName, RARITY_COLOR } from "../../../shared/game/items";
 import type { InvLocation } from "../../../shared/net/protocol";
 import { actions } from "../actions";
 import { useUi } from "../store";
+import { MapPanel } from "./MapPanel";
 
 /** Panels opened over the game (inventory, shops, map). Basic version —
  * click an item to move it (equip ⇄ bag); shops list their stock. */
@@ -17,7 +18,7 @@ export function Panels() {
       <div className="card" style={{ minWidth: 640 }}>
         {panel === "inventory" && <Inventory />}
         {panel.startsWith("shop:") && <Shop id={panel.slice(5)} />}
-        {panel === "map" && <div>The map is still being drawn.</div>}
+        {panel === "map" && <MapPanel />}
         <div style={{ marginTop: 16, textAlign: "right" }}>
           <button className="small" onClick={() => actions.openPanel(null)}>
             Close (Esc)

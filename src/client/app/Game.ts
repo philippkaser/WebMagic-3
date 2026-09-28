@@ -11,6 +11,7 @@ import { PROTOCOL_VERSION } from "../../shared/net/protocol";
 import { EntityType, Flag } from "../../shared/sim/entity";
 import { audio } from "../audio";
 import { Bolts } from "../fx/bolts";
+import { Decals } from "../fx/decals";
 import { Effects } from "../fx/Effects";
 import { ELEMENT_HEX } from "../fx/palette";
 import type { Particles } from "../fx/particles";
@@ -24,6 +25,8 @@ import { DungeonScene } from "../scenes/DungeonScene";
 import { VillageScene } from "../scenes/VillageScene";
 import { installActions } from "../ui/actions";
 import { Floaters } from "../ui/floaters";
+import { setMapProvider, type MapData } from "../ui/mapBridge";
+import { Exploration } from "../world/Exploration";
 import { ui } from "../ui/store";
 import { ClientWorld } from "../world/ClientWorld";
 
@@ -48,6 +51,8 @@ export class Game {
   private village: VillageScene | null = null;
   private effects: Effects;
   private bolts = new Bolts();
+  private decals = new Decals();
+  private exploration: Exploration | null = null;
   private floaters: Floaters;
   private pingTimer = 0;
   private heartbeat = 0;
@@ -70,6 +75,7 @@ export class Game {
     });
     renderer.scene.add(renderer.camera);
     renderer.scene.add(this.bolts.mesh);
+    renderer.scene.add(this.decals.mesh);
     for (const o of particles.objects) renderer.scene.add(o);
     this.floaters = new Floaters(document.getElementById("ui")!, renderer.camera);
     this.effects = new Effects(particles, renderer.lights, this.bolts, () => this.world, () => this.dungeon?.surfaces ?? null, {
@@ -79,6 +85,8 @@ export class Game {
       banner: (title, sub) => ui.set({ banner: { title, sub, at: performance.now() } }),
       selfId: () => this.world?.selfId ?? -1,
       cameraPos: () => renderer.camera.position,
+      groundAt: (x, z) => (this.dungeon ? this.dungeon.groundAt(x, z) : this.village ? 0 : NaN),
+      decal: (kind, x, y, z, size) => this.decals.add(kind, x, y, z, size),
     });
     installActions({
       play: (name) => void this.start(name),
@@ -96,6 +104,15 @@ export class Game {
         this.send({ t: "respawn" });
       },
       setSetting: (key, value) => this.setting(key, value),
+    });
+    setMapProvider(() => {
+      if (!this.dungeon || !this.exploration) return null;
+      const markers: MapData["markers"] = [];
+      for (const e of this.world?.entities.values() ?? []) {
+        if (e.type === EntityType.Interactable && (e.def === "descent" || e.def === "arrival" || e.def === "reliquary" || e.def === "chest")) markers.push({ x: e.x, z: e.z, kind: e.def });
+        else if (e.type === EntityType.Player && e.id !== this.world?.selfId && e.flags & Flag.Ally) markers.push({ x: e.x, z: e.z, kind: "ally" });
+      }
+      return { layout: this.dungeon.layout, seen: this.exploration.seen, player: { x: this.player.pos.x, z: this.player.pos.z, yaw: this.player.yaw }, markers };
     });
     document.addEventListener("pointerlockchange", () => {
       if (!input.locked && ui.get().screen === "play" && !ui.get().panel && !ui.get().died && !ui.get().ascended && !ui.get().note) ui.set({ paused: true });
@@ -244,6 +261,7 @@ export class Game {
       this.dungeon = new DungeonScene(this.renderer, this.particles, info.seed, info.floor, info.surfaces);
       ctx.layout = this.dungeon.layout;
       this.world = new ClientWorld(ctx, info.you);
+      this.exploration = new Exploration(this.dungeon.layout);
       this.player.enter(this.dungeon.staticBoxes, new Vector3(...info.arrival), info.yaw);
       audio.play("arrival");
       const biome = this.dungeon.layout.biome;
@@ -258,6 +276,8 @@ export class Game {
   }
 
   private leaveScene(): void {
+    this.decals.clear();
+    this.exploration = null;
     this.world?.clear();
     this.world = null;
     this.dungeon?.dispose();
@@ -312,6 +332,7 @@ export class Game {
     this.player.update(dt, this.input, this.world);
     if (this.world) this.world.update(this.clock.serverNow() - INTERP_DELAY_MS, dt);
     this.dungeon?.update(dt);
+    this.exploration?.update(dt, this.player.pos.x, this.player.pos.y + 0.6, this.player.pos.z, (this.player.stats?.lightRadius ?? 7) + 3);
     this.village?.update(dt);
     for (const v of this.villagers.values()) {
       const r = v.model.root;

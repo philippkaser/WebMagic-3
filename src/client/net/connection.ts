@@ -91,8 +91,12 @@ export async function connect(): Promise<Connection> {
   if (!params.has("offline")) {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const url = params.get("server") ?? `${proto}//${location.host}/ws`;
-    const ws = await tryWebSocket(url, 1500);
-    if (ws) return new WsConnection(ws);
+    // Two patient attempts: a busy machine (or a cold server) can take a
+    // moment to accept, and falling back offline by mistake is costly.
+    for (const timeout of [2500, 4000]) {
+      const ws = await tryWebSocket(url, timeout);
+      if (ws) return new WsConnection(ws);
+    }
   }
   const worker = new Worker(new URL("../../server/worker/offline.worker.ts", import.meta.url), { type: "module" });
   return new WorkerConnection(worker);

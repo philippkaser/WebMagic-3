@@ -8,6 +8,7 @@ import type { LightManager } from "../render/lights";
 import type { ClientWorld } from "../world/ClientWorld";
 import type { SurfaceLayer } from "../world/SurfaceLayer";
 import type { Bolts } from "./bolts";
+import type { DecalKind } from "./decals";
 import { ELEMENT_COLOR, ELEMENT_HEX, hexLinear } from "./palette";
 import type { Particles } from "./particles";
 
@@ -21,6 +22,9 @@ export interface EffectsHooks {
   banner(title: string, sub: string): void;
   selfId(): number;
   cameraPos(): Vector3;
+  /** Floor height under a point (for decals); NaN when unknown. */
+  groundAt(x: number, z: number): number;
+  decal(kind: DecalKind, x: number, y: number, z: number, size: number): void;
 }
 
 type P3 = [number, number, number];
@@ -68,6 +72,7 @@ export class Effects {
         this.lights.flash(v(ev.p), ELEMENT_HEX[ev.el], 3, 5, 0.18);
         const spell = SPELLS.find(ev.spell);
         audio.play(spell?.sfx?.hit ?? `hit_${ev.el}`, { pos: v(ev.p) });
+        if (ev.n[1] > 0.7) this.floorDecal(ev.p, ev.el === "fire" ? "scorch" : ev.el === "frost" ? "frost" : ev.el === "venom" ? "venom" : "scorch", ev.el === "fire" || ev.el === "venom" ? 0.9 : 0.4);
         return;
       }
       case "hit": {
@@ -84,6 +89,7 @@ export class Effects {
           const def = CREATURES.find(target.def);
           const bony = def?.faction === "dead";
           this.burst(ev.p, bony ? [0.8, 0.75, 0.6] : [0.35, 0.02, 0.02], bony ? 6 : 10, 2.5, 0.5, bony ? "bone_chip" : "blood", undefined, false, -9);
+          if (!bony && ev.amt > 4 && Math.random() < 0.6) this.floorDecal([ev.p[0] + (Math.random() - 0.5) * 0.8, ev.p[1], ev.p[2] + (Math.random() - 0.5) * 0.8], "blood", 0.3 + Math.min(0.9, ev.amt / 40));
           audio.play(bony ? "hit_bone" : "hit_flesh", { pos: v(ev.p) });
           if (def?.voice && Math.random() < 0.5) audio.voice(def.voice, "hurt", { pos: v(ev.p), pitch: 1 / (def.scale ?? 1) });
           if (ev.crit) audio.play("crit", { pos: v(ev.p) });
@@ -108,6 +114,7 @@ export class Effects {
         // Shockwave ring.
         P.spawn({ x: ev.p[0], y: ev.p[1] + 0.1, z: ev.p[2], life: 0.35, size: 0.3, size1: ev.r * 2.6, r: c[0], g: c[1], b: c[2], alpha: 0.9, sprite: "ring" });
         this.lights.flash(v(ev.p), ELEMENT_HEX[ev.el], 8 + ev.r * 2, ev.r * 3.5, 0.35);
+        this.floorDecal(ev.p, ev.el === "frost" ? "frost" : ev.el === "venom" ? "venom" : "scorch", ev.r * 1.1);
         audio.play(ev.r > 3.5 ? "explosion_large" : ev.r > 2 ? "explosion_medium" : "explosion_small", { pos: v(ev.p) });
         return;
       }
@@ -251,6 +258,13 @@ export class Effects {
         this.lights.flash(v(p), color ?? "#ffffff", 3, scale ?? 6, 1.5);
         return;
     }
+  }
+
+  /** A decal on the floor under p (only if p is near the floor). */
+  private floorDecal(p: P3, kind: DecalKind, size: number): void {
+    const g = this.hooks.groundAt(p[0], p[2]);
+    if (!Number.isFinite(g) || p[1] - g > 2.2 || p[1] < g - 0.3) return;
+    this.hooks.decal(kind, p[0], g, p[2], size);
   }
 
   burst(p: P3, c: [number, number, number], n: number, speed: number, life: number, sprite = "spark", dir?: P3, additive = true, gravity = -4): void {

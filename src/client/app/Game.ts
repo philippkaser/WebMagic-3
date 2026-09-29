@@ -9,6 +9,7 @@ import { decodeSnapshot } from "../../shared/net/codec";
 import type { ClientMsg, SceneInfo, ServerMsg } from "../../shared/net/protocol";
 import { PROTOCOL_VERSION } from "../../shared/net/protocol";
 import { EntityType, Flag } from "../../shared/sim/entity";
+import { CellKind } from "../../shared/world/layout";
 import { audio } from "../audio";
 import { Bolts } from "../fx/bolts";
 import { Decals } from "../fx/decals";
@@ -262,7 +263,14 @@ export class Game {
       ctx.layout = this.dungeon.layout;
       this.world = new ClientWorld(ctx, info.you);
       this.exploration = new Exploration(this.dungeon.layout);
-      this.player.enter(this.dungeon.staticBoxes, new Vector3(...info.arrival), info.yaw);
+      const grid = this.dungeon.layout.grid;
+      this.player.enter(this.dungeon.staticBoxes, new Vector3(...info.arrival), info.yaw, (x, z) => {
+        const cx = Math.floor(x);
+        const cz = Math.floor(z);
+        if (cx < 0 || cz < 0 || cx >= grid.w || cz >= grid.h) return null;
+        const i = cz * grid.w + cx;
+        return grid.kind[i] === CellKind.Open ? grid.floor[i] : null;
+      });
       audio.play("arrival");
       const biome = this.dungeon.layout.biome;
       ui.set({ banner: { title: `Floor ${info.floor}`, sub: bannerSub(biome, info.floor), at: performance.now() } });

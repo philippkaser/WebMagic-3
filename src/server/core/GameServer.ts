@@ -546,11 +546,14 @@ export class GameServer {
     const wasGrounded = e.player!.input.grounded;
     const fallSpeed = Math.max(s.fallSpeed, -e.player!.input.vel.y);
     const corr = playerInput(sim, e, { seq: msg.s, pos: v(msg.p), vel: v(msg.v), yaw: msg.y, pitch: msg.pi, grounded: !!msg.g });
-    if (corr) s.send({ t: "self", s: { hp: e.hp, maxHp: e.maxHp, mana: e.player!.mana, maxMana: e.player!.maxMana, cd: {}, st: {}, corr: [corr.x, corr.y, corr.z] } });
+    if (corr) {
+      s.send({ t: "self", s: { hp: e.hp, maxHp: e.maxHp, mana: e.player!.mana, maxMana: e.player!.maxMana, cd: {}, st: {}, corr: [corr.x, corr.y, corr.z] } });
+      e.player!.input.vel.y = 0; // a corrected delver didn't fall anywhere
+    }
     // Falls are judged here, from the reported motion: a hard landing hurts,
     // and the abyss under a pit keeps what falls into it.
-    s.fallSpeed = msg.g ? 0 : fallSpeed;
-    if (!wasGrounded && msg.g && fallSpeed > FALL_SAFE) {
+    s.fallSpeed = msg.g || corr ? 0 : fallSpeed;
+    if (!corr && !wasGrounded && msg.g && fallSpeed > FALL_SAFE) {
       damage(sim, e, (fallSpeed - FALL_SAFE) * 7, { source: 0, element: "physical", cause: "fall" });
       sim.emit({ t: "sound", id: "land_heavy", p: [e.pos.x, e.pos.y, e.pos.z] });
     }

@@ -8,6 +8,7 @@ import type { FloorSim } from "./FloorSim";
 import { createCapsuleBody, GROUPS, RAPIER } from "./physics";
 import { ampsOf, castSpell, eyeOf } from "./spells";
 import { spawnReliquary } from "./objects";
+import { CellKind } from "../world/layout";
 
 /** Delvers inside the simulation. Movement is client-authoritative within
  * validated limits (instant, latency-free feel); everything that affects
@@ -88,6 +89,11 @@ export function playerInput(sim: FloorSim, e: Entity, input: PlayerInput): V3 | 
   const inside = cx >= 0 && cz >= 0 && cx < g.w && cz < g.h && g.kind[cz * g.w + cx] !== 0;
   if (!Number.isFinite(pos.x + pos.y + pos.z) || !inside || d > maxSpeed * elapsed + 1.5) {
     pos = p.input.pos;
+    corrected = { ...pos };
+  } else if (g.kind[cz * g.w + cx] === CellKind.Open && pos.y < g.floor[cz * g.w + cx] + e.height / 2 - 1.2) {
+    // Sunk through solid ground (a client physics glitch): only pits drop
+    // a delver into the abyss, so stand them back up instead.
+    pos = { x: pos.x, y: g.floor[cz * g.w + cx] + e.height / 2 + 0.05, z: pos.z };
     corrected = { ...pos };
   }
   p.input = { seq: input.seq, pos: { ...pos }, vel: { ...input.vel }, yaw: input.yaw, pitch: input.pitch, grounded: input.grounded, time: sim.time };

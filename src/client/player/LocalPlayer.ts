@@ -5,7 +5,7 @@ import { CREATURES, ITEMS, SPELLS, surfaceDef } from "../../shared/content";
 import type { SpellDef } from "../../shared/content/types";
 import type { ClientMsg, SelfState } from "../../shared/net/protocol";
 import { EntityType, type PlayerStats } from "../../shared/sim/entity";
-import { GROUPS, RAPIER, createWorld } from "../../shared/sim/physics";
+import { GROUPS, RAPIER } from "../../shared/sim/physics";
 import type { StaticBox } from "../../shared/world/colliders";
 import { damp, dirFromAngles } from "../../shared/util/math";
 import { audio } from "../audio";
@@ -15,6 +15,7 @@ import type { LightManager, PointLight } from "../render/lights";
 import type { ClientWorld } from "../world/ClientWorld";
 import { hexLinear } from "../fx/palette";
 import { Predicted } from "./Predicted";
+import { createCharacterWorld } from "./characterWorld";
 
 /** The delver you control. Movement runs locally for zero-latency feel
  * (Rapier kinematic character controller against the same static world the
@@ -31,6 +32,11 @@ export interface PlayerHooks {
 
 const HALF = PLAYER.halfHeight;
 const RADIUS = PLAYER.radius;
+/** Capsule centre above the ground when standing. */
+const STAND = HALF + RADIUS;
+
+/** Floor height under a point, or null where there is none (pits, rock). */
+export type GroundProbe = (x: number, z: number) => number | null;
 
 export class LocalPlayer {
   readonly camera: PerspectiveCamera;
@@ -49,6 +55,8 @@ export class LocalPlayer {
   private collider: Collider | null = null;
   private body: RigidBody | null = null;
   private proxies = new Map<number, { body: RigidBody; collider: Collider }>();
+  private spawnPoint = new Vector3();
+  private groundProbe: GroundProbe | null = null;
   private grounded = false;
   private coyote = 0;
   private jumpBuffer = 0;
@@ -86,22 +94,15 @@ export class LocalPlayer {
   // ── scene lifecycle ──────────────────────────────────────────────────────
 
   /** Build the local collision world for a new place and spawn there. */
-  enter(boxes: StaticBox[], spawn: Vector3, yaw: number): void {
+  enter(boxes: StaticBox[], spawn: Vector3, yaw: number, groundAt?: GroundProbe): void {
     this.leave();
-    const w = createWorld();
-    const fixed = w.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    for (const b of boxes) {
-      w.createCollider(RAPIER.ColliderDesc.cuboid(b.half[0], b.half[1], b.half[2]).setTranslation(b.center[0], b.center[1], b.center[2]).setCollisionGroups(GROUPS.world), fixed);
-    }
-    this.body = w.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y, spawn.z));
-    this.collider = w.createCollider(RAPIER.ColliderDesc.capsule(HALF, RADIUS).setCollisionGroups(GROUPS.player), this.body);
-    const kcc = w.createCharacterController(0.02);
-    kcc.enableAutostep(PLAYER.stepHeight, 0.15, false);
-    kcc.enableSnapToGround(0.3);
-    kcc.setMaxSlopeClimbAngle((PLAYER.maxSlopeDeg * Math.PI) / 180);
-    kcc.setApplyImpulsesToDynamicBodies(false);
-    this.kcc = kcc;
-    this.world = w;
+    const cw = createCharacterWorld(boxes, spawn);
+    this.world = cw.world;
+    this.body = cw.body;
+    this.collider = cw.collider;
+    this.kcc = cw.kcc;
+    this.spawnPoint.copy(spawn);
+    this.groundProbe = groundAt ?? null;
     this.pos.copy(spawn);
     this.vel.set(0, 0, 0);
     this.yaw = yaw;
@@ -161,6 +162,9 @@ export class LocalPlayer {
     if (!this.world || !this.kcc || !this.collider) return;
     dt = Math.min(dt, 1 / 20);
     if (world) this.syncProxies(world);
+    // Every frame, proxies or not: moves our kinematic collider and keeps the
+    // query index current for the character controller.
+    this.world.step();
 
     if (this.active && input.locked) {
       this.yaw -= input.mouseDX * input.sensitivity;
@@ -315,7 +319,24 @@ export class LocalPlayer {
       }
     }
 
-    if (this.pos.y < KILL_Y - 10) this.vel.set(0, 0, 0);
+    this.rescue();
+  }
+
+  /** Physics must never drop a delver out of the world. Below solid ground
+   * (a collider gap, a bad correction) we're put back on top of it; only a
+   * real pit lets you fall — and the abyss under it is the server's to judge.
+   * Places without a ground probe (the village) return you to the spawn. */
+  private rescue(): void {
+    let to: Vector3 | null = null;
+    if (this.groundProbe) {
+      const floor = this.groundProbe(this.pos.x, this.pos.z);
+      if (floor !== null && this.pos.y < floor + STAND - 1.2) to = new Vector3(this.pos.x, floor + STAND + 0.05, this.pos.z);
+    } else if (this.pos.y < this.spawnPoint.y - 30) to = this.spawnPoint;
+    if (to) {
+      this.teleport(to);
+      this.lastFallSpeed = 0;
+      this.grounded = false;
+    } else if (this.pos.y < KILL_Y - 10) this.vel.set(0, 0, 0);
   }
 
   private prevHoriz = 0;
@@ -513,7 +534,6 @@ export class LocalPlayer {
       w.removeRigidBody(p.body);
       this.proxies.delete(id);
     }
-    w.step();
   }
 
   private dust(n: number): void {

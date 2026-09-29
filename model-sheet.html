@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Model sheet</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #050407; overflow: hidden; font: 11px/1.2 monospace; }
+      #c { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+      #labels { position: fixed; inset: 0; pointer-events: none; }
+      #labels div { position: absolute; transform: translate(-50%, 0); color: #d8ccb0; text-shadow: 0 1px 0 #000, 0 0 3px #000; white-space: nowrap; text-align: center; }
+      #labels div small { color: #8a8070; }
+      #title { position: fixed; left: 8px; top: 6px; color: #b8a888; text-shadow: 0 1px 0 #000; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="labels"></div>
+    <div id="title"></div>
+    <script type="module" src="/src/client/gfx/models/sheet.ts"></script>
+  </body>
+</html>

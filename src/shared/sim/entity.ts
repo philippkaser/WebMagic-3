@@ -66,6 +66,10 @@ export const Flag = {
   /** Player currently raising the Open Palm. */
   Palm: 1 << 13,
   Helper: 1 << 14,
+  /** A light-bearer whose flame is out: snuffed candles, lamps, candle
+   * wights, mercy candles (clients switch the light and flame fx off).
+   * Creatures reuse `Hidden` while burrowed/submerged in ink. */
+  Unlit: 1 << 15,
 } as const;
 
 export interface StatusInst {
@@ -132,7 +136,7 @@ export interface CreatureState {
   /** id → accumulated resentment (damage taken from them). */
   grudges: Map<number, number>;
   lastSeen: { id: number; pos: V3; time: number } | null;
-  noise: { pos: V3; time: number; loudness: number } | null;
+  noise: { pos: V3; time: number; loudness: number; source?: number } | null;
   /** Trap ids this creature knows about (it avoids their cells). */
   knownTraps: Set<number>;
   home: V3;
@@ -147,6 +151,34 @@ export interface CreatureState {
   warden: { phase: number } | null;
   summonedBy: number;
   lifeTime: number;
+  /** Persistent trait scratch (sim/ai/traits.ts); survives behaviour changes. */
+  ts: Record<string, number>;
+  /** Temporary buff from `empower` effects. */
+  buff: CreatureBuff | null;
+  /** Where the last fright came from (feared creatures run away from it). */
+  fearFrom: V3 | null;
+  /** A victim held by a grab attack. */
+  hold: HoldState | null;
+}
+
+export interface CreatureBuff {
+  until: number;
+  speed: number;
+  damage: number;
+  resist: number;
+  haste: number;
+  /** Harmony/pack bonuses suppressed until this time. */
+  discordUntil: number;
+}
+
+export interface HoldState {
+  targetId: number;
+  until: number;
+  carry: "self" | "hazard" | "water" | null;
+  dps: number;
+  element: Element;
+  throwSpeed: number;
+  goal: V3 | null;
 }
 
 export interface PropState {
@@ -156,6 +188,20 @@ export interface PropState {
   thrownBy: number;
   thrownTime: number;
   ignited: boolean;
+  /** Open flame burning (flame props). */
+  lit?: boolean;
+  /** Seconds left before it crumbles (walls, grave candles). */
+  life?: number;
+  /** onHit bookkeeping. */
+  hitReady?: number;
+  charges?: number;
+  toppled?: boolean;
+  /** Seconds it has been burning (burnTime props). */
+  burnt?: number;
+  /** Creature or player this prop belongs to (linked pages, grave candles). */
+  owner?: number;
+  /** Who last hurt it (reform piles remember). */
+  lastHitBy?: number;
 }
 
 export interface ProjectileState {
@@ -241,6 +287,8 @@ export interface PlayerState {
   lastSpotCheck: number;
   lastPos: V3;
   lastInputTime: number;
+  /** Focus casts made (unique mechanics that count casts). */
+  castCount?: number;
 }
 
 /** Player combat stats derived from gear (game/stats.ts). */
@@ -276,4 +324,6 @@ export interface PlayerStats {
   relic: string | null;
   /** Amplifier ids from all gear. */
   amps: string[];
+  /** Legendary `unique.mechanic` ids from all gear (sim/uniques.ts). */
+  mechanics?: string[];
 }

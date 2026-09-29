@@ -65,7 +65,8 @@ export function carveRoom(g: FloorGrid, r: Room, mats: { floor?: number; wall?: 
   }
 }
 
-export const roomCenter = (r: Room): [number, number] => [Math.floor(r.x + r.w / 2), Math.floor(r.z + r.h / 2)];
+/** A room's focal cell: its anchor, or the middle of its bounding box. */
+export const roomCenter = (r: Room): [number, number] => r.anchor ?? [Math.floor(r.x + r.w / 2), Math.floor(r.z + r.h / 2)];
 
 /** Minimum spanning tree over room centres plus `loopChance` of the
  * remaining short edges — loops make chases and flanking possible. */
@@ -312,6 +313,7 @@ export function roomCells(g: FloorGrid, r: Room, opts: { edge?: boolean; inset?:
   for (let z = r.z + inset; z < r.z + r.h - inset; z++) {
     for (let x = r.x + inset; x < r.x + r.w - inset; x++) {
       const i = z * g.w + x;
+      if (g.region[i] !== r.id) continue;
       if (g.kind[i] !== CellKind.Open || g.tags[i] & (CellTag.NoSpawn | CellTag.Door | CellTag.Bridge)) continue;
       if (g.liquid[i]) continue;
       if (opts.edge) {

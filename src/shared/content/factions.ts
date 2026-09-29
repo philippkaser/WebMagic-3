@@ -13,18 +13,25 @@ FACTIONS.register(
   { id: "carrion", name: "Carrion-eaters", hostile: ["delvers"], prey: ["vermin"], fears: [] },
   { id: "archive", name: "The Archive", hostile: ["delvers", "deep"] },
   { id: "deep", name: "Things of the Deep Water", hostile: ["delvers"], prey: ["archive"] },
-  { id: "choir", name: "The Choir", hostile: ["delvers", "fungal_beasts"] },
+  { id: "choir", name: "The Choir", hostile: ["delvers", "fungal_beasts", "wild"] },
   { id: "fungal_beasts", name: "Fungal Beasts", hostile: ["delvers"], prey: ["choir"] },
   { id: "foundry", name: "The Foundry", hostile: ["delvers", "slag"] },
   { id: "slag", name: "Slag", hostile: ["delvers", "foundry"] },
   { id: "hive", name: "The Hive", hostile: ["delvers", "wild"] },
-  { id: "frost", name: "The Frozen", hostile: ["delvers"] },
+  { id: "frost", name: "The Frozen", hostile: ["delvers", "wild"] },
   { id: "flesh", name: "The Grown", hostile: ["delvers", "dream"], prey: ["delvers"] },
   { id: "orrery", name: "The Orrery", hostile: ["delvers", "unlit"] },
   { id: "unlit", name: "The Unlit", hostile: ["delvers", "orrery"] },
-  { id: "dream", name: "The Dream Itself", hostile: ["delvers"] },
-  { id: "wild", name: "Wild Things", hostile: ["delvers"], prey: ["vermin"] },
+  { id: "dream", name: "The Dream Itself", hostile: ["delvers", "unlit"] },
+  // Dissonants are wild, and the chord hates them back.
+  { id: "wild", name: "Wild Things", hostile: ["delvers", "choir"], prey: ["vermin", "hive"] },
   { id: "helpers", name: "Kindly Things", hostile: [] },
+  {
+    id: "parasite",
+    name: "Things That Feed",
+    hostile: ["delvers"],
+    prey: ["vermin", "carrion", "wild", "flesh", "hive", "fungal_beasts"],
+  },
 );
 
 const cache = new Map<string, boolean>();

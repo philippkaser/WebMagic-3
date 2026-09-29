@@ -108,8 +108,20 @@ export function groundAt(g: FloorGrid, p: { x: number; z: number }): number {
 
 export type RoomRole = "arrival" | "descent" | "treasure" | "vault" | "shrine" | "arena" | "lair" | "hall" | "chamber";
 
+/** Authored spawn markers a generator (vault stamps, warden arenas) leaves
+ * for the populator: "put the chest *here*", "the warden waits *here*". */
+export type RoomMarkKind = "warden" | "chest" | "creature" | "trap" | "note" | "fixture" | "shrine" | "prop" | "altar";
+
+export interface RoomMark {
+  kind: RoomMarkKind;
+  x: number;
+  z: number;
+}
+
 export interface Room {
   id: number;
+  /** Bounding box in cells. Irregular rooms (discs, blobs, hexes) own only
+   * the cells whose `grid.region` equals their id. */
   x: number;
   z: number;
   w: number;
@@ -121,6 +133,14 @@ export interface Room {
   depth: number;
   /** Free-form tags generators and populators share ("flooded", "ossuary"…). */
   tags: string[];
+  /** The room's focal cell (pad for arrival/descent, centre of the action).
+   * Defaults to the bounding-box centre — irregular rooms set it. */
+  anchor?: [number, number];
+  /** Spawn markers the populator honours before its random placement. */
+  marks?: RoomMark[];
+  /** Corridors may only attach on this side (outward direction), e.g. a
+   * warden arena entered opposite its dais. */
+  entry?: [number, number];
 }
 
 export type SpawnKind = "creature" | "prop" | "trap" | "interactable";

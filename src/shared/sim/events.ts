@@ -24,7 +24,9 @@ export type SimEvent =
   | { t: "shake"; p: P3; amount: number }
   | { t: "msg"; to: number; text: string; kind: "info" | "warn" | "lore" | "presence" }
   | { t: "warden"; id: number; phase: number; name: string }
-  | { t: "open"; id: number };
+  | { t: "open"; id: number }
+  /** A static light fixture (layout.fixtures[i]) was snuffed or relit. */
+  | { t: "fixture"; i: number; lit: boolean };
 
 /** Surface change batch helper type. */
 export type SurfaceChange = { index: number; kind: Surface };

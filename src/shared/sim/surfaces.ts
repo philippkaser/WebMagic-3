@@ -25,6 +25,12 @@ export class SurfaceGrid {
   private changed = new Map<number, Surface>();
   private spreadTimer = 0;
   private random: () => number;
+  /** Fire cells as of the last spread pass (cheap "where is fire?" queries). */
+  fires: number[] = [];
+  /** Cells where spores caught fire since the last drain (they explode). */
+  sporeIgnitions: number[] = [];
+  /** Cells where water hit lava since the last drain (steam). */
+  steam: number[] = [];
 
   constructor(layout: FloorLayout, random: () => number) {
     const g = layout.grid;
@@ -89,6 +95,7 @@ export class SurfaceGrid {
     }
     // Clearing a permanent pool cell restores the pool.
     if (kind === Surface.None && this.base[i]) kind = this.base[i];
+    if (kind === Surface.Fire && this.kind[i] === Surface.Spores && track) this.sporeIgnitions.push(i);
     this.kind[i] = kind;
     this.life[i] = kind === Surface.None ? 0 : kind === this.base[i] ? Infinity : surfaceDef(kind).lifetime || Infinity;
     if (kind !== Surface.Water) this.charge[i] = 0;
@@ -96,23 +103,72 @@ export class SurfaceGrid {
   }
 
   /** Paint a disc of `kind`, respecting what's already there: fire can't
-   * burn on water, water puts out fire, frost on water makes ice. */
-  paint(px: number, pz: number, radius: number, kind: Surface): void {
+   * burn on water, water puts out fire, frost on water makes ice, water on
+   * lava cools it to a crust. `life` overrides the surface's own lifetime
+   * (poured lava that cools, timed webs). */
+  paint(px: number, pz: number, radius: number, kind: Surface, life?: number): void {
     this.forDisc(px, pz, radius, (x, z, i) => {
       const cur = this.kind[i] as Surface;
       let next = kind;
       if (kind === Surface.Fire) {
-        if (cur === Surface.Water || cur === Surface.Ice) return;
+        if (cur === Surface.Water || cur === Surface.Ice || cur === Surface.Lava) return;
         if (cur !== Surface.None && !surfaceDef(cur).flammable && cur !== Surface.Fire && cur !== Surface.Blood && cur !== Surface.Ash) return;
       } else if (kind === Surface.Ice) {
+        if (cur === Surface.Lava) return;
         next = Surface.Ice;
+      } else if (kind === Surface.Water && cur === Surface.Lava) {
+        // Quenched: a steaming crust you can cross for a while.
+        this.set(x, z, Surface.Ash);
+        this.life[i] = 15;
+        this.steam.push(i);
+        return;
       } else if (kind === Surface.Water && cur === Surface.Fire) {
         next = Surface.None;
       } else if (this.base[i] && cur === this.base[i]) {
         return; // deep pools can't be painted over except by freezing
+      } else if (kind === Surface.Lava && (cur === Surface.Water || cur === Surface.Ice)) {
+        this.set(x, z, Surface.Ash);
+        this.life[i] = 10;
+        this.steam.push(i);
+        return;
       }
       this.set(x, z, next);
+      if (life !== undefined && this.kind[i] === next && next !== Surface.None) this.life[i] = life;
     });
+  }
+
+  /** Replace `from` with `to` inside a disc (beating out fires, drying ink). */
+  replace(px: number, pz: number, radius: number, from: Surface, to: Surface): number {
+    let n = 0;
+    this.forDisc(px, pz, radius, (x, z, i) => {
+      if (this.kind[i] !== from) return;
+      this.set(x, z, to);
+      n++;
+    });
+    return n;
+  }
+
+  /** Is the cell under a world point open floor? */
+  openAt(px: number, pz: number): boolean {
+    const x = Math.floor(px * SURF_RES);
+    const z = Math.floor(pz * SURF_RES);
+    if (x < 0 || z < 0 || x >= this.w || z >= this.h) return false;
+    return this.open[z * this.w + x] === 1;
+  }
+
+  /** World-space centre of a surface cell index. */
+  cellCenter(i: number): { x: number; z: number } {
+    return { x: ((i % this.w) + 0.5) / SURF_RES, z: (((i / this.w) | 0) + 0.5) / SURF_RES };
+  }
+
+  /** Electrify the connected water under a world point. */
+  electrifyAt(px: number, pz: number, seconds = 1.2): boolean {
+    const x = Math.floor(px * SURF_RES);
+    const z = Math.floor(pz * SURF_RES);
+    if (x < 0 || z < 0 || x >= this.w || z >= this.h) return false;
+    if (this.kind[z * this.w + x] !== Surface.Water) return false;
+    this.electrify(x, z, seconds);
+    return true;
   }
 
   /** An element touches the floor: run surface reactions (fire ignites
@@ -145,7 +201,7 @@ export class SurfaceGrid {
     while (stack.length && n < maxCells) {
       const i = stack.pop()!;
       if (this.kind[i] !== Surface.Water) continue;
-      this.charge[i] = seconds;
+      this.charge[i] = Math.max(this.charge[i], seconds);
       n++;
       const x = i % this.w;
       const z = (i / this.w) | 0;
@@ -171,8 +227,9 @@ export class SurfaceGrid {
         if (this.life[i] <= 0) {
           const x = i % this.w;
           const z = (i / this.w) | 0;
-          // Burnt-out fire leaves ash; thawed ice leaves water puddles.
-          this.set(x, z, k === Surface.Fire ? Surface.Ash : k === Surface.Ice ? Surface.Water : Surface.None);
+          // Burnt-out fire leaves ash; thawed ice leaves water puddles;
+          // poured lava cools to a crust.
+          this.set(x, z, k === Surface.Fire || k === Surface.Lava ? Surface.Ash : k === Surface.Ice ? Surface.Water : Surface.None);
           if (k === Surface.Ice && !this.base[i]) this.life[i] = 20;
         }
       }
@@ -182,8 +239,10 @@ export class SurfaceGrid {
     if (this.spreadTimer >= 0.25) {
       this.spreadTimer = 0;
       const ignite: number[] = [];
+      this.fires.length = 0;
       for (let i = 0; i < n; i++) {
         if (this.kind[i] !== Surface.Fire) continue;
+        this.fires.push(i);
         for (const j of [i - 1, i + 1, i - this.w, i + this.w]) {
           if (j < 0 || j >= n) continue;
           const kj = this.kind[j] as Surface;

@@ -1,5 +1,6 @@
 import { Group, Quaternion, Vector3 } from "three";
 import { BIOMES } from "../../shared/content";
+import { Surface } from "../../shared/content/types";
 import { buildStaticBoxes } from "../../shared/world/colliders";
 import { generateFloor } from "../../shared/world/generate";
 import { CellKind, type FloorLayout } from "../../shared/world/layout";
@@ -24,6 +25,9 @@ export class DungeonScene {
   private flameAcc = 0;
   private loops: { stop(f?: number): void }[] = [];
   private time = 0;
+  /** Points over water where drips fall (played near the listener only). */
+  private drips: Vector3[] = [];
+  private dripIn = 1;
 
   constructor(
     private renderer: Renderer,
@@ -58,11 +62,16 @@ export class DungeonScene {
       this.group.add(m.root);
       this.decor.push(m);
     }
-    // Pools of water murmur.
-    for (let z = 0; z < this.layout.grid.h; z += 6) {
-      for (let x = 0; x < this.layout.grid.w; x += 6) {
-        const i = z * this.layout.grid.w + x;
-        if (this.layout.grid.liquid[i] && this.layout.grid.kind[i] === CellKind.Open) this.loops.push(audio.loop("water_drip", { pos: { x: x + 0.5, y: this.layout.grid.liquidLevel[i], z: z + 0.5 }, volume: 0.4 }));
+    // Pools drip; lava and acid seethe.
+    const g0 = this.layout.grid;
+    for (let z = 0; z < g0.h; z += 6) {
+      for (let x = 0; x < g0.w; x += 6) {
+        const i = z * g0.w + x;
+        if (!g0.liquid[i] || g0.kind[i] !== CellKind.Open) continue;
+        const pos = { x: x + 0.5, y: g0.liquidLevel[i], z: z + 0.5 };
+        if (g0.liquid[i] === Surface.Lava) this.loops.push(audio.loop("lava_loop", { pos, volume: 0.5 }));
+        else if (g0.liquid[i] === Surface.Acid || g0.liquid[i] === Surface.Slime) this.loops.push(audio.loop("bubbling_loop", { pos, volume: 0.35 }));
+        else this.drips.push(new Vector3(pos.x, pos.y, pos.z));
       }
     }
 
@@ -91,6 +100,14 @@ export class DungeonScene {
     this.time += dt;
     for (const f of this.fixtures) f.model.animate({ anim: 0, variant: 0, animTime: this.time, time: this.time, dt, speed: 0, hp: 1, flags: 0, statuses: [] });
     this.surfaces.update(this.particles, dt);
+    this.dripIn -= dt;
+    if (this.dripIn <= 0 && this.drips.length) {
+      this.dripIn = 0.4 + Math.random() * 1.6;
+      const cam = this.renderer.camera.position;
+      const near = this.drips.filter((p) => p.distanceToSquared(cam) < 20 * 20);
+      const p = near[Math.floor(Math.random() * near.length)];
+      if (p) audio.play("water_drip", { pos: { x: p.x + Math.random() * 4 - 2, y: p.y, z: p.z + Math.random() * 4 - 2 }, volume: 0.5 });
+    }
     // Torch flames, embers and smoke — only near the camera.
     this.flameAcc += dt;
     if (this.flameAcc < 1 / 30) return;

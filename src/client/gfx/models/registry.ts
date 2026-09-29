@@ -112,8 +112,12 @@ export function rigModel(
   build(r);
   const mat = opts.flashable !== false ? ownSurfaceMaterial() : surfaceMaterial();
   const rig = r.build(mat);
+  // The rig root is reset every frame (it may be animated, e.g. a death
+  // topple), so hand out a holder the caller can place freely.
+  const holder = new Group();
+  holder.add(rig.root);
   return {
-    root: rig.root,
+    root: holder,
     height: rig.height,
     animate(s) {
       resetRig(rig);

@@ -132,4 +132,18 @@ STATUSES.register(
     duration: 6,
     color: "#9aa0b8",
   },
+  {
+    id: "blinded",
+    name: "Blinded",
+    desc: "Ink, steam or a snuffed candle: sight shrinks to a few metres.",
+    duration: 3,
+    color: "#2a2438",
+  },
+  {
+    id: "silenced",
+    name: "Silenced",
+    desc: "Shushed. No spell will come.",
+    duration: 1.5,
+    color: "#c8c0e8",
+  },
 );
